@@ -9,7 +9,10 @@ import java.time.LocalDate;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class ActionItem extends BaseEntity {
     private String title;
+
+    @Column(length = 1000) // FIXED: Increase size to accommodate long descriptions from CSV
     private String description;
+
     private Integer progress = 0; // 0 or 100 usually
 
     private LocalDate dueDate;

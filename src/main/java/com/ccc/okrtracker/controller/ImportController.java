@@ -15,6 +15,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
+// ADDED IMPORTS for Apache Commons CSV
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+
 @RestController
 @RequestMapping("/api/import")
 @RequiredArgsConstructor
@@ -25,6 +30,16 @@ public class ImportController {
     private static final DateTimeFormatter ISO_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     // Secondary, more flexible format to handle common user input (US standard)
     private static final DateTimeFormatter US_DATE_FORMATTER = DateTimeFormatter.ofPattern("M/d/yyyy");
+
+    // Define the expected CSV headers in order
+    private static final String[] CSV_HEADERS = {
+            "Project Title", "Project Description",
+            "Initiative Title", "Initiative Description",
+            "Goal Title", "Goal Description",
+            "Objective Title", "Objective Description", "Objective Assignee", "Objective Year", "Objective Quarter", "Objective Due Date",
+            "KR Title", "KR Description", "KR Assignee", "KR Metric Start", "KR Metric Target", "KR Metric Current", "KR Unit",
+            "Action Item Title", "Action Item Description", "Action Item Assignee", "Action Item Due Date", "Action Item Is Completed"
+    };
 
     @PostMapping("/hierarchy")
     public ResponseEntity<String> importHierarchy(@RequestParam("file") MultipartFile file) {
@@ -39,86 +54,89 @@ public class ImportController {
         } catch (Exception e) {
             // Log the detailed exception
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Error during import: " + e.getMessage());
+            // IMPROVEMENT: Provide a more informative error for the user
+            String errorMessage = e.getMessage() != null && e.getMessage().contains("expected 24")
+                    ? "Import failed. The CSV file must contain exactly 24 columns in the correct order, starting with the header row. Check for missing columns or extra delimiters in the file."
+                    : "Error during import: " + e.getMessage();
+            return ResponseEntity.internalServerError().body(errorMessage);
         }
     }
 
     /**
-     * A basic, non-robust CSV parser for demonstration purposes.
-     * Assumes specific column order and comma delimiter.
-     * NOTE: This should be replaced with a robust library (e.g., Apache Commons CSV) in production.
+     * Robust CSV parser using Apache Commons CSV library.
+     * Assumes the first row contains headers defined in CSV_HEADERS.
      */
     private List<HierarchyImportRow> parseCsv(MultipartFile file) throws Exception {
         List<HierarchyImportRow> importRows = new ArrayList<>();
-        // Using ISO-8859-1 as a general fallback, but UTF-8 is often better if used consistently
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), "UTF-8"))) {
-            // Read header (and discard)
-            String headerLine = reader.readLine();
-            if (headerLine == null) return importRows;
 
-            // Define the expected CSV headers for mapping (order matters here!)
-            String[] headers = headerLine.split(",");
+        // Use UTF-8 for reading the file content
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), "UTF-8"));
+             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
+                     .withHeader(CSV_HEADERS)
+                     .withIgnoreHeaderCase()
+                     .withTrim()
+                     .withSkipHeaderRecord() // Skip the first line after reading it as headers
+                     .withAllowMissingColumnNames()
+                     .withNullString("") // Treat empty strings as null
+                     .withIgnoreEmptyLines()
+             )) {
 
-            // Expected headers:
-            // 0: projectTitle, 1: projectDescription, 2: initiativeTitle, 3: initiativeDescription,
-            // 4: goalTitle, 5: goalDescription, 6: objectiveTitle, 7: objectiveDescription,
-            // 8: objectiveAssignee, 9: objectiveYear, 10: objectiveQuarter, 11: objectiveDueDate,
-            // 12: krTitle, 13: krDescription, 14: krAssignee, 15: krMetricStart,
-            // 16: krMetricTarget, 17: krMetricCurrent, 18: krUnit, 19: actionItemTitle,
-            // 20: actionItemDescription, 21: actionItemAssignee, 22: actionItemDueDate, 23: actionItemIsCompleted
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                // Split line by comma, this is very basic and won't handle embedded commas/quotes well.
-                String[] values = line.split(",", -1);
-                if (values.length < 24) continue; // Skip incomplete rows
+            for (CSVRecord csvRecord : csvParser) {
+                // Ensure all expected columns are present. Commons CSV ensures 24 fields if headers were read correctly.
+                if (csvRecord.size() < CSV_HEADERS.length) {
+                    System.err.println("Skipping row due to insufficient columns: " + csvRecord.toString());
+                    continue;
+                }
 
                 HierarchyImportRow row = new HierarchyImportRow();
                 try {
-                    int i = 0;
                     // Project
-                    row.setProjectTitle(values[i++].trim());
-                    row.setProjectDescription(values[i++].trim());
+                    row.setProjectTitle(csvRecord.get("Project Title"));
+                    row.setProjectDescription(csvRecord.get("Project Description"));
 
                     // Strategic Initiative
-                    row.setInitiativeTitle(values[i++].trim());
-                    row.setInitiativeDescription(values[i++].trim());
+                    row.setInitiativeTitle(csvRecord.get("Initiative Title"));
+                    row.setInitiativeDescription(csvRecord.get("Initiative Description"));
 
                     // Goal
-                    row.setGoalTitle(values[i++].trim());
-                    row.setGoalDescription(values[i++].trim());
+                    row.setGoalTitle(csvRecord.get("Goal Title"));
+                    row.setGoalDescription(csvRecord.get("Goal Description"));
 
                     // Objective
-                    row.setObjectiveTitle(values[i++].trim());
-                    row.setObjectiveDescription(values[i++].trim());
-                    row.setObjectiveAssignee(values[i++].trim());
-                    row.setObjectiveYear(parseInteger(values[i++]));
-                    row.setObjectiveQuarter(values[i++].trim());
-                    row.setObjectiveDueDate(parseDate(values[i++]));
+                    row.setObjectiveTitle(csvRecord.get("Objective Title"));
+                    row.setObjectiveDescription(csvRecord.get("Objective Description"));
+                    row.setObjectiveAssignee(csvRecord.get("Objective Assignee"));
+                    row.setObjectiveYear(parseInteger(csvRecord.get("Objective Year")));
+                    row.setObjectiveQuarter(csvRecord.get("Objective Quarter"));
+                    row.setObjectiveDueDate(parseDate(csvRecord.get("Objective Due Date")));
 
                     // Key Result
-                    row.setKrTitle(values[i++].trim());
-                    row.setKrDescription(values[i++].trim());
-                    row.setKrAssignee(values[i++].trim());
-                    row.setKrMetricStart(parseDouble(values[i++]));
-                    row.setKrMetricTarget(parseDouble(values[i++]));
-                    row.setKrMetricCurrent(parseDouble(values[i++]));
-                    row.setKrUnit(values[i++].trim());
+                    row.setKrTitle(csvRecord.get("KR Title"));
+                    row.setKrDescription(csvRecord.get("KR Description"));
+                    row.setKrAssignee(csvRecord.get("KR Assignee"));
+                    row.setKrMetricStart(parseDouble(csvRecord.get("KR Metric Start")));
+                    row.setKrMetricTarget(parseDouble(csvRecord.get("KR Metric Target")));
+                    row.setKrMetricCurrent(parseDouble(csvRecord.get("KR Metric Current")));
+                    row.setKrUnit(csvRecord.get("KR Unit"));
 
                     // Action Item
-                    row.setActionItemTitle(values[i++].trim());
-                    row.setActionItemDescription(values[i++].trim());
-                    row.setActionItemAssignee(values[i++].trim());
-                    row.setActionItemDueDate(parseDate(values[i++]));
-                    row.setActionItemIsCompleted(parseBoolean(values[i++]));
+                    row.setActionItemTitle(csvRecord.get("Action Item Title"));
+                    row.setActionItemDescription(csvRecord.get("Action Item Description"));
+                    row.setActionItemAssignee(csvRecord.get("Action Item Assignee"));
+                    row.setActionItemDueDate(parseDate(csvRecord.get("Action Item Due Date")));
+                    // NOTE: Commons CSV handles "NULL" strings, but we still need to derive boolean
+                    row.setActionItemIsCompleted(parseBoolean(csvRecord.get("Action Item Is Completed")));
 
-                    // Only add if at least a Project is defined
-                    if (!row.getProjectTitle().isEmpty()) {
+                    // Only add if at least a Project Title is defined
+                    if (row.getProjectTitle() != null && !row.getProjectTitle().trim().isEmpty()) {
                         importRows.add(row);
                     }
-                } catch (NumberFormatException | DateTimeParseException e) {
+                } catch (IllegalArgumentException e) {
+                    // This catches errors like missing headers not caught by the parser setup.
+                    System.err.println("Error processing row: " + csvRecord.toString() + ". Error: " + e.getMessage());
+                } catch (DateTimeParseException e) {
                     // Log error and continue to next row
-                    System.err.println("Skipping row due to parsing error: " + line + ". Error: " + e.getMessage());
+                    System.err.println("Skipping row due to parsing error: " + csvRecord.toString() + ". Error: " + e.getMessage());
                 }
             }
         }
@@ -128,9 +146,9 @@ public class ImportController {
     private Integer parseInteger(String value) {
         if (value == null || value.trim().isEmpty()) return null;
         try {
+            // FIX: Gracefully handle non-numeric input by returning null
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {
-            // FIX: Gracefully handle non-numeric input by returning null
             System.err.println("Failed to parse integer value: " + value);
             return null;
         }
@@ -139,10 +157,9 @@ public class ImportController {
     private Double parseDouble(String value) {
         if (value == null || value.trim().isEmpty()) return null;
         try {
-            // FIX: Added try-catch for NumberFormatException
+            // FIX: Gracefully handle non-numeric input by returning null
             return Double.parseDouble(value.trim());
         } catch (NumberFormatException e) {
-            // FIX: Gracefully handle non-numeric input by returning null
             System.err.println("Failed to parse double value: " + value);
             return null;
         }

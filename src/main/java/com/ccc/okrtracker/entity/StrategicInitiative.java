@@ -10,7 +10,10 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class StrategicInitiative extends BaseEntity {
     private String title;
+
+    @Column(length = 1000) // FIXED: Increase size to accommodate long descriptions from CSV
     private String description;
+
     private Integer progress = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)

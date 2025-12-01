@@ -11,7 +11,10 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class Objective extends BaseEntity {
     private String title;
+
+    @Column(length = 1000) // FIXED: Increase size to accommodate long descriptions from CSV
     private String description;
+
     private Integer progress = 0;
 
     private String assignee; // User Login

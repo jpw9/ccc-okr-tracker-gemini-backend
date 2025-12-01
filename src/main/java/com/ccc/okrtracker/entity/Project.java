@@ -10,7 +10,7 @@ import java.util.List;
 public class Project extends BaseEntity {
     private String title;
 
-    @Column(length = 1000)
+    @Column(length = 1000) // Confirmed long length for description
     private String description;
 
     private Integer progress = 0;
