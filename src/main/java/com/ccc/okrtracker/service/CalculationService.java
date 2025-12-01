@@ -7,12 +7,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class CalculationService {
 
     private final ProjectRepository projectRepository;
+
+    // Helper to safely extract Integer progress, defaulting to 0 if null
+    private int safeProgress(Integer progress) {
+        return Optional.ofNullable(progress).orElse(0);
+    }
 
     @Transactional
     public void recalculateProject(Long projectId) {
@@ -42,45 +48,61 @@ public class CalculationService {
                     for (KeyResult kr : obj.getKeyResults()) {
                         if (!kr.getIsActive()) continue;
 
-                        // KR Logic: If Action Items exist, avg them. Else use Metric.
+                        // KR Logic: If Action Items exist, average them. Else use Metric.
                         int krProgress = 0;
-                        long activeAiCount = kr.getActionItems().stream().filter(BaseEntity::getIsActive).count();
+
+                        // FIX 1: Filter out null ActionItem elements from the set/stream first
+                        long activeAiCount = kr.getActionItems().stream()
+                                .filter(ai -> ai != null)
+                                .filter(BaseEntity::getIsActive)
+                                .count();
 
                         if (activeAiCount > 0) {
+                            // Calculate KR progress based on average Action Item progress (0 or 100)
+                            // FIX 2: Added filter(ai -> ai != null) here as well for safety
                             double aiSum = kr.getActionItems().stream()
+                                    .filter(ai -> ai != null) // CRASH FIX HERE
                                     .filter(BaseEntity::getIsActive)
-                                    .mapToInt(ActionItem::getProgress).sum();
-                            krProgress = (int) Math.round(aiSum / activeAiCount);
+                                    .mapToInt(ai -> safeProgress(ai.getProgress()))
+                                    .sum();
+                            krProgress = (int) Math.min(100, Math.round(aiSum / activeAiCount));
                         } else if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0) {
-                            double percentage = ((kr.getMetricCurrent() - kr.getMetricStart())
-                                    / (kr.getMetricTarget() - kr.getMetricStart())) * 100;
-                            krProgress = (int) Math.min(100, Math.max(0, Math.round(percentage)));
+                            // Calculate KR progress based on metrics
+                            double range = kr.getMetricTarget() - kr.getMetricStart();
+
+                            if (range != 0.0) { // Safety check against division by zero
+                                double percentage = ((kr.getMetricCurrent() - kr.getMetricStart()) / range) * 100;
+                                krProgress = (int) Math.min(100, Math.max(0, Math.round(percentage)));
+                            } else if (kr.getMetricCurrent() != null && kr.getMetricStart() != null && kr.getMetricCurrent().equals(kr.getMetricStart())) {
+                                // Target equals start (e.g., Target=0, Start=0, Current=0). Treat as 0% unless current is non-zero
+                                krProgress = 0;
+                            }
                         }
 
                         kr.setProgress(krProgress);
-                        objTotal += krProgress;
+                        objTotal += safeProgress(kr.getProgress());
                         krCount++;
                     }
 
-                    int newObjProgress = (krCount > 0) ? Math.round((float) objTotal / krCount) : obj.getProgress();
+                    int newObjProgress = (krCount > 0) ? Math.round((float) objTotal / krCount) : safeProgress(obj.getProgress());
                     obj.setProgress(newObjProgress);
-                    goalTotal += newObjProgress;
+                    goalTotal += safeProgress(obj.getProgress());
                     objCount++;
                 }
 
-                int newGoalProgress = (objCount > 0) ? Math.round((float) goalTotal / objCount) : goal.getProgress();
+                int newGoalProgress = (objCount > 0) ? Math.round((float) goalTotal / objCount) : safeProgress(goal.getProgress());
                 goal.setProgress(newGoalProgress);
-                initTotal += newGoalProgress;
+                initTotal += safeProgress(goal.getProgress());
                 goalCount++;
             }
 
-            int newInitProgress = (goalCount > 0) ? Math.round((float) initTotal / goalCount) : init.getProgress();
+            int newInitProgress = (goalCount > 0) ? Math.round((float) initTotal / goalCount) : safeProgress(init.getProgress());
             init.setProgress(newInitProgress);
-            projTotal += newInitProgress;
+            projTotal += safeProgress(init.getProgress());
             initCount++;
         }
 
-        project.setProgress((initCount > 0) ? Math.round((float) projTotal / initCount) : project.getProgress());
+        project.setProgress((initCount > 0) ? Math.round((float) projTotal / initCount) : safeProgress(project.getProgress()));
         projectRepository.save(project);
     }
 }

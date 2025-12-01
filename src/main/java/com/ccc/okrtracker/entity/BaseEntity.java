@@ -1,5 +1,6 @@
 package com.ccc.okrtracker.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -42,6 +43,17 @@ public abstract class BaseEntity {
 
     private String closedBy;
     private LocalDateTime closedDate;
+
+    /**
+     * Frontend Fix: Inject the simple class name (e.g., "Project") into the JSON response
+     * to match the structure required by the React frontend logic (which uses item.type
+     * for icons and determining the next addable entity).
+     */
+    @JsonProperty("type")
+    @Transient // Ensure JPA knows this is not a database column
+    public String getType() {
+        return this.getClass().getSimpleName();
+    }
 
     // Soft Delete Helper
     public void softDelete(String user) {
