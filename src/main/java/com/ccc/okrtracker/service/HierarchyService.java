@@ -105,6 +105,8 @@ public class HierarchyService {
         // Handle Soft Delete/Restore Logic
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             p.softDelete(CURRENT_USER);
+            // CRITICAL FIX: Cascade soft delete to all children
+            cascadeSoftDelete(p, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             p.restore();
         }
@@ -124,6 +126,8 @@ public class HierarchyService {
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             init.softDelete(CURRENT_USER);
+            // FIX: Cascade soft delete to children of Initiative
+            cascadeSoftDelete(init, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             init.restore();
         }
@@ -143,6 +147,8 @@ public class HierarchyService {
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             g.softDelete(CURRENT_USER);
+            // FIX: Cascade soft delete to children of Goal
+            cascadeSoftDelete(g, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             g.restore();
         }
@@ -166,6 +172,8 @@ public class HierarchyService {
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             obj.softDelete(CURRENT_USER);
+            // FIX: Cascade soft delete to children of Objective
+            cascadeSoftDelete(obj, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             obj.restore();
         }
@@ -190,6 +198,8 @@ public class HierarchyService {
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             kr.softDelete(CURRENT_USER);
+            // FIX: Cascade soft delete to children of Key Result
+            cascadeSoftDelete(kr, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             kr.restore();
         }
@@ -208,7 +218,7 @@ public class HierarchyService {
         Optional.ofNullable(updates.getDueDate()).ifPresent(ai::setDueDate);
         Optional.ofNullable(updates.getAssignee()).ifPresent(ai::setAssignee);
 
-        // --- FIX: Apply manual progress first, so it overrides the 'isCompleted' derivation ---
+        // --- Apply manual progress first, so it overrides the 'isCompleted' derivation ---
         // If progress is manually sent from the UI (when editing), use it immediately.
         Optional.ofNullable(updates.getProgress()).ifPresent(ai::setProgress);
 
@@ -232,5 +242,42 @@ public class HierarchyService {
         ActionItem saved = aiRepo.save(ai);
         calculationService.recalculateProject(saved.getKeyResult().getObjective().getGoal().getInitiative().getProject().getId());
         return saved;
+    }
+
+    // --- New Recursive Helper for Soft Delete/Restore ---
+
+    /**
+     * Recursively applies soft-delete (isActive=false) or restore (isActive=true)
+     * to all hierarchical descendants of the given parent entity.
+     * * @param parent The parent entity (Project, Initiative, Goal, Objective, KeyResult)
+     * @param restore If true, restores the entities (isActive=true); otherwise soft-deletes (isActive=false).
+     */
+    private void cascadeSoftDelete(BaseEntity parent, boolean restore) {
+        // Determine the action based on the 'restore' flag
+        if (!restore) {
+            // Soft delete: set isActive to false and update audit fields
+            parent.softDelete(CURRENT_USER);
+        } else {
+            // Restore: set isActive to true and clear closed audit fields
+            parent.restore();
+        }
+
+        // Recursively apply to children
+        if (parent instanceof Project) {
+            Project p = (Project) parent;
+            p.getInitiatives().forEach(init -> cascadeSoftDelete(init, restore));
+        } else if (parent instanceof StrategicInitiative) {
+            StrategicInitiative init = (StrategicInitiative) parent;
+            init.getGoals().forEach(goal -> cascadeSoftDelete(goal, restore));
+        } else if (parent instanceof Goal) {
+            Goal g = (Goal) parent;
+            g.getObjectives().forEach(obj -> cascadeSoftDelete(obj, restore));
+        } else if (parent instanceof Objective) {
+            Objective obj = (Objective) parent;
+            obj.getKeyResults().forEach(kr -> cascadeSoftDelete(kr, restore));
+        } else if (parent instanceof KeyResult) {
+            KeyResult kr = (KeyResult) parent;
+            kr.getActionItems().forEach(ai -> cascadeSoftDelete(ai, restore));
+        }
     }
 }
