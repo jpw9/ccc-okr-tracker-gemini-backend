@@ -1,0 +1,52 @@
+# -----------------------------------------------------------------------------
+# Spring Boot Specific
+# -----------------------------------------------------------------------------
+# Maven (If you use Maven)
+/target/
+
+# Gradle (If you use Gradle)
+/build/
+.gradle/
+!src/main/**/resources/**/.gitkeep
+!src/test/**/resources/**/.gitkeep
+
+# Logs
+*.log
+logs/
+nohup.out
+
+# Dependency lock files
+/pom.xml.tag
+/pom.xml.releaseBackup
+/pom.xml.versionsBackup
+/pom.xml.next
+/release.properties
+/dependency-reduced-pom.xml
+/spring-boot-*-exec.jar
+/spring-boot-debug.log
+
+# -----------------------------------------------------------------------------
+# IDE and OS Specific
+# -----------------------------------------------------------------------------
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
