@@ -1,3 +1,5 @@
+// File: jpw9/ccc-okr-tracker-gemini-backend/ccc-okr-tracker-gemini-backend-2133aa9e882f23bca9d8c21e07a747afb8685989/src/main/java/com/ccc/okrtracker/service/CalculationService.java
+
 package com.ccc.okrtracker.service;
 
 import com.ccc.okrtracker.entity.*;
@@ -68,15 +70,22 @@ public class CalculationService {
                             krProgress = (int) Math.min(100, Math.round(aiSum / activeAiCount));
                         } else if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0) {
                             // Calculate KR progress based on metrics
-                            double range = kr.getMetricTarget() - kr.getMetricStart();
+
+                            // FIX: Provide default values for nullable Double fields before calculation
+                            double target = kr.getMetricTarget();
+                            double start = Optional.ofNullable(kr.getMetricStart()).orElse(0.0);
+                            double current = Optional.ofNullable(kr.getMetricCurrent()).orElse(0.0);
+
+                            double range = target - start;
 
                             if (range != 0.0) { // Safety check against division by zero
-                                double percentage = ((kr.getMetricCurrent() - kr.getMetricStart()) / range) * 100;
+                                double percentage = ((current - start) / range) * 100;
                                 krProgress = (int) Math.min(100, Math.max(0, Math.round(percentage)));
-                            } else if (kr.getMetricCurrent() != null && kr.getMetricStart() != null && kr.getMetricCurrent().equals(kr.getMetricStart())) {
-                                // Target equals start (e.g., Target=0, Start=0, Current=0). Treat as 0% unless current is non-zero
+                            } else if (current == start) { // This covers the case where start=target, and current is also equal.
+                                // Target equals start (e.g., Target=10, Start=10, Current=10). Treat as 0% as this might imply a binary goal that hasn't been met.
                                 krProgress = 0;
                             }
+                            // Note: If range=0 but current != start, progress should arguably be 100, but the original code didn't handle this fully. Sticking to fixing the NPE.
                         }
 
                         kr.setProgress(krProgress);
