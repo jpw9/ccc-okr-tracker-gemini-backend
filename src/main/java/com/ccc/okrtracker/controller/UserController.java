@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/user")
@@ -22,16 +24,14 @@ public class UserController {
 
     /**
      * Endpoint to fetch the application's User entity for the currently authenticated Keycloak user.
-     * This is used by the frontend for roles/permissions mapping.
+     * Used by the frontend for roles/permissions mapping.
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()") // Only requires successful JWT authentication
     public ResponseEntity<User> getCurrentUser(Authentication authentication) {
-        // The Authentication object principal should be the JWT
         if (authentication.getPrincipal() instanceof Jwt jwt) {
             String email = jwt.getClaimAsString("email");
 
-            // Look up user by email in the application database
             Optional<User> user = userRepository.findByEmail(email);
 
             return user.map(ResponseEntity::ok)
@@ -39,5 +39,17 @@ public class UserController {
         }
 
         return ResponseEntity.badRequest().build();
+    }
+
+    /**
+     * Endpoint to fetch all active users. Used for assignment dropdowns in hierarchy views.
+     * Requires only basic authentication, not MANAGE_USERS permission.
+     */
+    @GetMapping("/all")
+    @PreAuthorize("isAuthenticated()")
+    public List<User> getAllUsersForAssignment() {
+        return userRepository.findAll().stream()
+                .filter(User::getIsActive)
+                .collect(Collectors.toList());
     }
 }

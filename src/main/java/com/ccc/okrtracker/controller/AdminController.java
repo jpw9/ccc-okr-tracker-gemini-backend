@@ -44,4 +44,12 @@ public class AdminController {
     public Role createRole(@RequestBody Role role) {
         return roleRepo.save(role);
     }
+
+    @PutMapping("/roles/{id}")
+    @PreAuthorize("hasAuthority('MANAGE_ROLES')")
+    public ResponseEntity<Role> updateRole(@PathVariable Long id, @RequestBody Role role) {
+        // Ensure the ID from the path is set on the entity before saving/updating
+        role.setId(id);
+        return ResponseEntity.ok(roleRepo.save(role));
+    }
 }
