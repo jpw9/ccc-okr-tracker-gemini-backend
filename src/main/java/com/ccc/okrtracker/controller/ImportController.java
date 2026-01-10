@@ -74,11 +74,11 @@ public class ImportController {
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
                      .withHeader(CSV_HEADERS)
                      .withIgnoreHeaderCase()
-                     .withTrim()
-                     .withSkipHeaderRecord() // Skip the first line after reading it as headers
-                     .withAllowMissingColumnNames()
+                     .withTrim(true)
+                     .withSkipHeaderRecord(true) // Skip the first line after reading it as headers
+                     .withAllowMissingColumnNames(true)
                      .withNullString("") // Treat empty strings as null
-                     .withIgnoreEmptyLines()
+                     .withIgnoreEmptyLines(true)
              )) {
 
             for (CSVRecord csvRecord : csvParser) {

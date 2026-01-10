@@ -24,7 +24,7 @@ public class ArchiveController {
                 .filter(p -> !p.getIsActive()).collect(Collectors.toList());
 
         // Combine with other entities...
-        return (List) archivedProjects;
+        return new java.util.ArrayList<>(archivedProjects);
     }
 
     @PostMapping("/restore/{type}/{id}")

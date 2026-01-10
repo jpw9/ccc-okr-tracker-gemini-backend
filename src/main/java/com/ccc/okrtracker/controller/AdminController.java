@@ -1,5 +1,6 @@
 package com.ccc.okrtracker.controller;
 
+import com.ccc.okrtracker.dto.UserDTO;
 import com.ccc.okrtracker.entity.Role;
 import com.ccc.okrtracker.entity.User;
 import com.ccc.okrtracker.repository.RoleRepository;
@@ -9,7 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize; // NEW IMPORT
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -30,6 +34,31 @@ public class AdminController {
     @PreAuthorize("hasAuthority('MANAGE_USERS')") // ADDED AUTHORIZATION CHECK
     public User createUser(@RequestBody User user) {
         return userRepo.save(user);
+    }
+
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasAuthority('MANAGE_USERS')") // ADDED AUTHORIZATION CHECK
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UserDTO userDTO) {
+        return userRepo.findById(id)
+                .map(existingUser -> {
+                    // Update only mutable fields
+                    existingUser.setFirstName(userDTO.getFirstName());
+                    existingUser.setLastName(userDTO.getLastName());
+                    existingUser.setEmail(userDTO.getEmail());
+                    existingUser.setLogin(userDTO.getLogin());
+                    existingUser.setGroupNo(userDTO.getGroupNo());
+                    existingUser.setPrimaryProjectId(userDTO.getPrimaryProjectId());
+                    
+                    // Handle roles update using roleIds from DTO
+                    if (userDTO.getRoleIds() != null && !userDTO.getRoleIds().isEmpty()) {
+                        Set<Role> updatedRoles = new HashSet<>(roleRepo.findAllById(userDTO.getRoleIds()));
+                        existingUser.setRoles(updatedRoles);
+                    }
+
+                    User savedUser = userRepo.save(existingUser);
+                    return ResponseEntity.ok(savedUser);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     // --- Roles ---
