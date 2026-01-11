@@ -21,6 +21,9 @@ public class KeyResult extends BaseEntity {
     private Double metricTarget;
     private Double metricCurrent;
     private String unit; // "%", "$", etc.
+    
+    // Flag: true = KR was manually set, use direct value. false = calculate from action items
+    private Boolean manualProgressSet = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "objective_id")

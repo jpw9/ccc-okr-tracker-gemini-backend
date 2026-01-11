@@ -194,6 +194,11 @@ public class HierarchyService {
         Optional.ofNullable(updates.getMetricCurrent()).ifPresent(kr::setMetricCurrent);
         Optional.ofNullable(updates.getUnit()).ifPresent(kr::setUnit);
         Optional.ofNullable(updates.getProgress()).ifPresent(kr::setProgress);
+        
+        // When user manually updates KR progress or metrics, lock it (ignore action items)
+        if (updates.getProgress() != null || updates.getMetricCurrent() != null) {
+            kr.setManualProgressSet(true);
+        }
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
             kr.softDelete(CURRENT_USER);
@@ -204,8 +209,15 @@ public class HierarchyService {
         }
 
         KeyResult saved = krRepo.save(kr);
-        calculationService.recalculateProject(saved.getObjective().getGoal().getInitiative().getProject().getId());
-        return saved;
+        krRepo.flush();  // Ensure KR update is persisted before recalculation
+        
+        // Reload KR to ensure relationships are initialized for navigation to Project
+        Long krId = saved.getId();
+        KeyResult reloadedKr = krRepo.findById(krId).orElseThrow(() -> new ResourceNotFoundException("Key Result not found"));
+        
+        Long projectId = reloadedKr.getObjective().getGoal().getInitiative().getProject().getId();
+        calculationService.recalculateProject(projectId);
+        return reloadedKr;  // Return reloaded KR with all updates and relationships intact
     }
 
     @Transactional
@@ -217,16 +229,11 @@ public class HierarchyService {
         Optional.ofNullable(updates.getDueDate()).ifPresent(ai::setDueDate);
         Optional.ofNullable(updates.getAssignee()).ifPresent(ai::setAssignee);
 
-        // --- Apply manual progress first, so it overrides the 'isCompleted' derivation ---
-        // If progress is manually sent from the UI (when editing), use it immediately.
+        // --- Apply manual progress first ---
         Optional.ofNullable(updates.getProgress()).ifPresent(ai::setProgress);
 
-        // Handle isCompleted status: If set, update the status AND ONLY set progress
-        // IF the updates DTO did NOT contain a manual progress value.
         if (updates.getIsCompleted() != null) {
             ai.setIsCompleted(updates.getIsCompleted());
-
-            // Only set progress based on isCompleted if the update DTO DID NOT include a manual progress field.
             if (updates.getProgress() == null) {
                 ai.setProgress(updates.getIsCompleted() ? 100 : 0);
             }
@@ -238,9 +245,22 @@ public class HierarchyService {
             ai.restore();
         }
 
-        ActionItem saved = aiRepo.save(ai);
-        calculationService.recalculateProject(saved.getKeyResult().getObjective().getGoal().getInitiative().getProject().getId());
-        return saved;
+        ActionItem savedAi = aiRepo.save(ai);
+        
+        // When action item is updated, UNLOCK the KR so it recalculates from action items
+        KeyResult kr = savedAi.getKeyResult();
+        if (kr != null) {
+            kr.setManualProgressSet(false);
+            krRepo.save(kr);
+            krRepo.flush(); 
+            
+            // Re-fetch KR to safely navigate to Project ID
+            KeyResult reloadedKr = krRepo.findById(kr.getId()).orElseThrow();
+            Long projectId = reloadedKr.getObjective().getGoal().getInitiative().getProject().getId();
+            calculationService.recalculateProject(projectId);
+        }
+        
+        return savedAi;
     }
 
     // --- New Recursive Helper for Soft Delete/Restore ---
