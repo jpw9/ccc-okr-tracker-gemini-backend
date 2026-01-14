@@ -2,6 +2,7 @@ package com.ccc.okrtracker.config;
 
 import com.ccc.okrtracker.service.UserService; // NEW IMPORT
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity; // NEW IMPORT
@@ -25,6 +26,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final UserService userService; // NEW: Inject UserService
+    
+    @Value("${app.cors.origins}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -33,13 +37,20 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        // TODO: Change this line to enforce authentication once roles are set up
-                        // The application is ready to change this to: .requestMatchers("/api/**").authenticated()
-                        .requestMatchers("/api/**").permitAll() // Keeping endpoints open for quick testing
-                        .anyRequest().permitAll()
+                        // Public endpoints (authentication and health checks)
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll() // Optional: for health monitoring
+                        
+                        // Admin endpoints require authentication + method-level @PreAuthorize checks
+                        .requestMatchers("/api/admin/**").authenticated()
+                        
+                        // All other API endpoints require authentication
+                        .requestMatchers("/api/**").authenticated()
+                        
+                        // Deny everything else by default
+                        .anyRequest().denyAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        // MODIFIED: Set the custom converter to map app roles
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 );
 
@@ -60,8 +71,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Allow localhost:3000 (frontend URL)
-        configuration.setAllowedOrigins(List.of("http://localhost:4200"));
+        // Split comma-separated origins to support multiple environments
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

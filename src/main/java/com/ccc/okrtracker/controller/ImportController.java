@@ -4,6 +4,7 @@ import com.ccc.okrtracker.dto.HierarchyImportRow;
 import com.ccc.okrtracker.service.ImportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,6 +43,7 @@ public class ImportController {
     };
 
     @PostMapping("/hierarchy")
+    @PreAuthorize("hasAuthority('MANAGE_USERS')")
     public ResponseEntity<String> importHierarchy(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("Please select a CSV file to upload.");
@@ -71,14 +73,15 @@ public class ImportController {
 
         // Use UTF-8 for reading the file content
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), "UTF-8"));
-             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
-                     .withHeader(CSV_HEADERS)
-                     .withIgnoreHeaderCase()
-                     .withTrim(true)
-                     .withSkipHeaderRecord(true) // Skip the first line after reading it as headers
-                     .withAllowMissingColumnNames(true)
-                     .withNullString("") // Treat empty strings as null
-                     .withIgnoreEmptyLines(true)
+             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.builder()
+                     .setHeader(CSV_HEADERS)
+                     .setIgnoreHeaderCase(true)
+                     .setTrim(true)
+                     .setSkipHeaderRecord(true) // Skip the first line after reading it as headers
+                     .setAllowMissingColumnNames(true)
+                     .setNullString("") // Treat empty strings as null
+                     .setIgnoreEmptyLines(true)
+                     .build()
              )) {
 
             for (CSVRecord csvRecord : csvParser) {

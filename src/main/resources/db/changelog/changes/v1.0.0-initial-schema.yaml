@@ -1,0 +1,657 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1-create-base-tables
+      author: system
+      comment: Create initial OKR hierarchy tables
+      changes:
+        # Project Table
+        - createTable:
+            tableName: project
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Strategic Initiative Table
+        - createTable:
+            tableName: strategic_initiative
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Goal Table
+        - createTable:
+            tableName: goal
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: initiative_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Objective Table
+        - createTable:
+            tableName: objective
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: goal_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: assignee
+                  type: varchar(255)
+              - column:
+                  name: year
+                  type: integer
+              - column:
+                  name: quarter
+                  type: varchar(10)
+              - column:
+                  name: due_date
+                  type: date
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Key Result Table
+        - createTable:
+            tableName: key_result
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: objective_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: assignee
+                  type: varchar(255)
+              - column:
+                  name: metric_start
+                  type: double precision
+              - column:
+                  name: metric_target
+                  type: double precision
+              - column:
+                  name: metric_current
+                  type: double precision
+              - column:
+                  name: unit
+                  type: varchar(50)
+              - column:
+                  name: manual_progress_set
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Action Item Table
+        - createTable:
+            tableName: action_item
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: key_result_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: progress
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: due_date
+                  type: date
+              - column:
+                  name: assignee
+                  type: varchar(255)
+              - column:
+                  name: is_completed
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+  - changeSet:
+      id: 2-create-user-and-role-tables
+      author: system
+      comment: Create user management and RBAC tables
+      changes:
+        # Role Table
+        - createTable:
+            tableName: role
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: is_system
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # Role Permissions Table (ElementCollection)
+        - createTable:
+            tableName: role_permissions
+            columns:
+              - column:
+                  name: role_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: permission
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+
+        # User Table
+        - createTable:
+            tableName: app_users
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: first_name
+                  type: varchar(255)
+              - column:
+                  name: last_name
+                  type: varchar(255)
+              - column:
+                  name: group_no
+                  type: varchar(50)
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: login
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: avatar
+                  type: varchar(10)
+              - column:
+                  name: primary_project_id
+                  type: bigint
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: created_date
+                  type: timestamp
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: updated_date
+                  type: timestamp
+              - column:
+                  name: closed_by
+                  type: varchar(255)
+              - column:
+                  name: closed_date
+                  type: timestamp
+
+        # User Roles Join Table
+        - createTable:
+            tableName: user_roles
+            columns:
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 3-add-foreign-keys
+      author: system
+      comment: Add foreign key constraints for referential integrity
+      changes:
+        # OKR Hierarchy Foreign Keys
+        - addForeignKeyConstraint:
+            baseTableName: strategic_initiative
+            baseColumnNames: project_id
+            constraintName: fk_initiative_project
+            referencedTableName: project
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: goal
+            baseColumnNames: initiative_id
+            constraintName: fk_goal_initiative
+            referencedTableName: strategic_initiative
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: objective
+            baseColumnNames: goal_id
+            constraintName: fk_objective_goal
+            referencedTableName: goal
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: key_result
+            baseColumnNames: objective_id
+            constraintName: fk_keyresult_objective
+            referencedTableName: objective
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: action_item
+            baseColumnNames: key_result_id
+            constraintName: fk_actionitem_keyresult
+            referencedTableName: key_result
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        # User/Role Foreign Keys
+        - addForeignKeyConstraint:
+            baseTableName: role_permissions
+            baseColumnNames: role_id
+            constraintName: fk_rolepermission_role
+            referencedTableName: role
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: user_roles
+            baseColumnNames: user_id
+            constraintName: fk_userrole_user
+            referencedTableName: app_users
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: user_roles
+            baseColumnNames: role_id
+            constraintName: fk_userrole_role
+            referencedTableName: role
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 4-add-indexes
+      author: system
+      comment: Add indexes for frequently queried columns
+      changes:
+        # Foreign key indexes
+        - createIndex:
+            indexName: idx_initiative_project
+            tableName: strategic_initiative
+            columns:
+              - column:
+                  name: project_id
+
+        - createIndex:
+            indexName: idx_goal_initiative
+            tableName: goal
+            columns:
+              - column:
+                  name: initiative_id
+
+        - createIndex:
+            indexName: idx_objective_goal
+            tableName: objective
+            columns:
+              - column:
+                  name: goal_id
+
+        - createIndex:
+            indexName: idx_keyresult_objective
+            tableName: key_result
+            columns:
+              - column:
+                  name: objective_id
+
+        - createIndex:
+            indexName: idx_actionitem_keyresult
+            tableName: action_item
+            columns:
+              - column:
+                  name: key_result_id
+
+        # Soft delete queries
+        - createIndex:
+            indexName: idx_project_active
+            tableName: project
+            columns:
+              - column:
+                  name: is_active
+
+        # User lookup indexes
+        - createIndex:
+            indexName: idx_user_email
+            tableName: app_users
+            columns:
+              - column:
+                  name: email
+
+        - createIndex:
+            indexName: idx_user_active
+            tableName: app_users
+            columns:
+              - column:
+                  name: is_active
+
+        # Assignment lookups
+        - createIndex:
+            indexName: idx_objective_assignee
+            tableName: objective
+            columns:
+              - column:
+                  name: assignee
+
+        - createIndex:
+            indexName: idx_objective_quarter_year
+            tableName: objective
+            columns:
+              - column:
+                  name: year
+              - column:
+                  name: quarter

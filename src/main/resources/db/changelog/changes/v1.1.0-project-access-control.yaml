@@ -1,0 +1,179 @@
+databaseChangeLog:
+  - changeSet:
+      id: 5-create-user-projects-table-v2
+      author: architect
+      comment: "Create many-to-many table for user-project assignments"
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: user_projects
+      changes:
+        - createTable:
+            tableName: user_projects
+            columns:
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: access_level
+                  type: varchar(20)
+                  defaultValue: 'MEMBER'
+              - column:
+                  name: assigned_date
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+              - column:
+                  name: assigned_by
+                  type: varchar(255)
+
+        - addPrimaryKey:
+            tableName: user_projects
+            columnNames: user_id, project_id
+            constraintName: pk_user_projects
+
+        - addForeignKeyConstraint:
+            baseTableName: user_projects
+            baseColumnNames: user_id
+            constraintName: fk_userprojects_user
+            referencedTableName: app_users
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: user_projects
+            baseColumnNames: project_id
+            constraintName: fk_userprojects_project
+            referencedTableName: project
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+      rollback:
+        - dropTable:
+            tableName: user_projects
+
+  - changeSet:
+      id: 6-create-role-projects-table-v2
+      author: architect
+      comment: "Create many-to-many table for role-project scoping"
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: role_projects
+      changes:
+        - createTable:
+            tableName: role_projects
+            columns:
+              - column:
+                  name: role_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: project_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+
+        - addPrimaryKey:
+            tableName: role_projects
+            columnNames: role_id, project_id
+            constraintName: pk_role_projects
+
+        - addForeignKeyConstraint:
+            baseTableName: role_projects
+            baseColumnNames: role_id
+            constraintName: fk_roleprojects_role
+            referencedTableName: role
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: role_projects
+            baseColumnNames: project_id
+            constraintName: fk_roleprojects_project
+            referencedTableName: project
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+      rollback:
+        - dropTable:
+            tableName: role_projects
+
+  - changeSet:
+      id: 7-add-project-access-indexes-v2
+      author: architect
+      comment: "Add indexes for project access queries"
+      preConditions:
+        - onFail: MARK_RAN
+        - not:
+            indexExists:
+              indexName: idx_user_projects_user
+      changes:
+        - createIndex:
+            indexName: idx_user_projects_user
+            tableName: user_projects
+            columns:
+              - column:
+                  name: user_id
+
+        - createIndex:
+            indexName: idx_user_projects_project
+            tableName: user_projects
+            columns:
+              - column:
+                  name: project_id
+
+        - createIndex:
+            indexName: idx_role_projects_role
+            tableName: role_projects
+            columns:
+              - column:
+                  name: role_id
+
+        - createIndex:
+            indexName: idx_role_projects_project
+            tableName: role_projects
+            columns:
+              - column:
+                  name: project_id
+
+      rollback:
+        - dropIndex:
+            indexName: idx_user_projects_user
+            tableName: user_projects
+        - dropIndex:
+            indexName: idx_user_projects_project
+            tableName: user_projects
+        - dropIndex:
+            indexName: idx_role_projects_role
+            tableName: role_projects
+        - dropIndex:
+            indexName: idx_role_projects_project
+            tableName: role_projects
+
+  - changeSet:
+      id: 8-migrate-primary-project-to-user-projects-v2
+      author: architect
+      comment: "Migrate existing primaryProjectId to user_projects table"
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO user_projects (user_id, project_id, access_level, assigned_by)
+              SELECT id, primary_project_id, 'MEMBER', 'system-migration'
+              FROM app_users
+              WHERE primary_project_id IS NOT NULL
+              ON CONFLICT DO NOTHING;
+
+      rollback:
+        - sql:
+            sql: |
+              DELETE FROM user_projects WHERE assigned_by = 'system-migration';

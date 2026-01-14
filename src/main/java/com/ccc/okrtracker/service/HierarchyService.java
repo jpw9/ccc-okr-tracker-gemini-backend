@@ -4,11 +4,16 @@ import com.ccc.okrtracker.entity.*;
 import com.ccc.okrtracker.exception.ResourceNotFoundException;
 import com.ccc.okrtracker.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +26,84 @@ public class HierarchyService {
     private final KeyResultRepository krRepo;
     private final ActionItemRepository aiRepo;
     private final CalculationService calculationService;
+    private final UserRepository userRepository;
+    private final ProjectAccessService projectAccessService;
 
-    // TODO: Replace hardcoded user with authenticated user from SecurityContext
-    private static final String CURRENT_USER = "admin_user";
+    /**
+     * Retrieves the currently authenticated user from Spring Security context.
+     * Extracts the email claim from JWT and looks up the User entity.
+     * 
+     * @return The authenticated User entity
+     * @throws ResourceNotFoundException if user is not found in database
+     */
+    private User getCurrentAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResourceNotFoundException("No authenticated user found");
+        }
 
+        // Extract email from JWT token
+        final String userIdentifier;
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            String email = jwt.getClaimAsString("email");
+            if (email != null) {
+                userIdentifier = email;
+            } else {
+                String username = jwt.getClaimAsString("preferred_username");
+                userIdentifier = username != null ? username : jwt.getSubject();
+            }
+        } else {
+            userIdentifier = authentication.getName();
+        }
+
+        if (userIdentifier == null) {
+            throw new ResourceNotFoundException("Could not extract user identifier from authentication");
+        }
+
+        // Look up user by email
+        return userRepository.findByEmail(userIdentifier)
+                .filter(User::getIsActive)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found or inactive: " + userIdentifier));
+    }
+
+    /**
+     * Helper method to get the current user's login string for audit fields.
+     * Falls back to "system" if no authenticated user is found.
+     * 
+     * @return The user's login identifier or "system"
+     */
+    private String getCurrentUserLogin() {
+        try {
+            User user = getCurrentAuthenticatedUser();
+            return user.getEmail();
+        } catch (Exception e) {
+            return "system"; // Fallback for system operations or unauthenticated contexts
+        }
+    }
+
+    /**
+     * Get all projects filtered by user's access permissions.
+     * Uses ProjectAccessService to determine accessible project IDs.
+     */
     public List<Project> getAllProjects() {
-        return projectRepo.findAll(); // Using the eager fetch method
+        User currentUser = getCurrentAuthenticatedUser();
+        Set<Long> accessibleIds = projectAccessService.getAccessibleProjectIds(currentUser);
+        
+        if (accessibleIds.isEmpty()) {
+            return List.of();
+        }
+        
+        return projectRepo.findAll().stream()
+            .filter(p -> p.getIsActive() != null && p.getIsActive() && accessibleIds.contains(p.getId()))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all projects without access filtering (for admin purposes).
+     */
+    public List<Project> getAllProjectsUnfiltered() {
+        return projectRepo.findByIsActiveTrue();
     }
 
     // --- Add Methods ---
@@ -103,7 +180,7 @@ public class HierarchyService {
 
         // Handle Soft Delete/Restore Logic
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            p.softDelete(CURRENT_USER);
+            p.softDelete(getCurrentUserLogin());
             // CRITICAL FIX: Cascade soft delete to all children
             cascadeSoftDelete(p, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
@@ -124,7 +201,7 @@ public class HierarchyService {
         Optional.ofNullable(updates.getProgress()).ifPresent(init::setProgress);
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            init.softDelete(CURRENT_USER);
+            init.softDelete(getCurrentUserLogin());
             // FIX: Cascade soft delete to children of Initiative
             cascadeSoftDelete(init, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
@@ -145,7 +222,7 @@ public class HierarchyService {
         Optional.ofNullable(updates.getProgress()).ifPresent(g::setProgress);
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            g.softDelete(CURRENT_USER);
+            g.softDelete(getCurrentUserLogin());
             // FIX: Cascade soft delete to children of Goal
             cascadeSoftDelete(g, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
@@ -170,7 +247,7 @@ public class HierarchyService {
         Optional.ofNullable(updates.getProgress()).ifPresent(obj::setProgress);
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            obj.softDelete(CURRENT_USER);
+            obj.softDelete(getCurrentUserLogin());
             // FIX: Cascade soft delete to children of Objective
             cascadeSoftDelete(obj, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
@@ -201,7 +278,7 @@ public class HierarchyService {
         }
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            kr.softDelete(CURRENT_USER);
+            kr.softDelete(getCurrentUserLogin());
             // FIX: Cascade soft delete to children of Key Result
             cascadeSoftDelete(kr, false);
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
@@ -240,7 +317,7 @@ public class HierarchyService {
         }
 
         if (updates.getIsActive() != null && !updates.getIsActive()) {
-            ai.softDelete(CURRENT_USER);
+            ai.softDelete(getCurrentUserLogin());
         } else if (updates.getIsActive() != null && updates.getIsActive()) {
             ai.restore();
         }
@@ -275,7 +352,7 @@ public class HierarchyService {
         // Determine the action based on the 'restore' flag
         if (!restore) {
             // Soft delete: set isActive to false and update audit fields
-            parent.softDelete(CURRENT_USER);
+            parent.softDelete(getCurrentUserLogin());
         } else {
             // Restore: set isActive to true and clear closed audit fields
             parent.restore();

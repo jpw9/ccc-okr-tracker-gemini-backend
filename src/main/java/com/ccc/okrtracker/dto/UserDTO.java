@@ -24,4 +24,5 @@ public class UserDTO {
     private String avatar;
     private Long primaryProjectId;
     private Set<Long> roleIds; // Role IDs for assignment
+    private Set<Long> assignedProjectIds; // Project IDs for direct assignment
 }
