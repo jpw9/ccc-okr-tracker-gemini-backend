@@ -4,7 +4,9 @@ package com.ccc.okrtracker.service;
 
 import com.ccc.okrtracker.entity.*;
 import com.ccc.okrtracker.repository.*;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -23,6 +25,7 @@ public class CalculationService {
     private final ObjectiveRepository objectiveRepository;
     private final GoalRepository goalRepository;
     private final StrategicInitiativeRepository initiativeRepository;
+    private final EntityManager entityManager;
 
     // Helper to safely extract Integer progress, defaulting to 0 if null
     private int safeProgress(Integer progress) {
@@ -32,31 +35,65 @@ public class CalculationService {
     @Transactional
     public void recalculateProject(Long projectId) {
         logger.info("=== RECALCULATE PROJECT START: projectId={} ===", projectId);
-        // Fetch fresh to ensure we have the latest data
+        
+        // Synchronize any pending changes to database before clearing cache
+        // This ensures all previous saves are committed before we fetch fresh data
+        try {
+            entityManager.flush();
+        } catch (Exception e) {
+            // If flush fails, log warning but continue - this might happen if entities are in invalid state
+            logger.warn("Failed to flush before recalculation, continuing anyway: {}", e.getMessage());
+        }
+        
+        // Clear persistence context to ensure we fetch fresh data from database
+        // This prevents stale data issues in test environments and long-running transactions
+        entityManager.clear();
+        
+        // Fetch project
         Project project = projectRepository.findById(projectId).orElseThrow();
 
+        // Force initialization of lazy collections at all levels
+        Hibernate.initialize(project.getInitiatives());
+        
+        for (StrategicInitiative init : project.getInitiatives()) {
+            Hibernate.initialize(init.getGoals());
+            for (Goal goal : init.getGoals()) {
+                Hibernate.initialize(goal.getObjectives());
+                for (Objective obj : goal.getObjectives()) {
+                    Hibernate.initialize(obj.getKeyResults());
+                    for (KeyResult kr : obj.getKeyResults()) {
+                        Hibernate.initialize(kr.getActionItems());
+                    }
+                }
+            }
+        }
+        
         int projTotal = 0;
         int initCount = 0;
 
         for (StrategicInitiative init : project.getInitiatives()) {
+            logger.info("Initiative id={}, isActive={}", init.getId(), init.getIsActive());
             if (!init.getIsActive()) continue;
 
             int initTotal = 0;
             int goalCount = 0;
 
             for (Goal goal : init.getGoals()) {
+                logger.info("  Goal id={}, isActive={}", goal.getId(), goal.getIsActive());
                 if (!goal.getIsActive()) continue;
 
                 int goalTotal = 0;
                 int objCount = 0;
 
                 for (Objective obj : goal.getObjectives()) {
+                    logger.info("    Objective id={}, isActive={}", obj.getId(), obj.getIsActive());
                     if (!obj.getIsActive()) continue;
 
                     int objTotal = 0;
                     int krCount = 0;
 
                     for (KeyResult kr : obj.getKeyResults()) {
+                        logger.info("      KeyResult id={}, isActive={}", kr.getId(), kr.getIsActive());
                         if (!kr.getIsActive()) continue;
 
                         // KR Logic: Smart calculation based on manual lock flag
@@ -67,27 +104,23 @@ public class CalculationService {
                         boolean manuallySet = kr.getManualProgressSet() != null && kr.getManualProgressSet();
                         
                         if (manuallySet) {
-                            // If manually set, we use the progress directly, but sync from metrics if they were updated
+                            // If manually set, use the progress value directly - don't recalculate or sync from metrics
+                            // This preserves the user's manual input while allowing rollup to parent entities
                             krProgress = safeProgress(kr.getProgress());
-                            
-                            if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0 && kr.getMetricCurrent() != null) {
-                                double target = kr.getMetricTarget();
-                                double start = Optional.ofNullable(kr.getMetricStart()).orElse(0.0);
-                                double current = kr.getMetricCurrent();
-                                double range = target - start;
-                                if (range != 0.0) {
-                                    krProgress = (int) Math.min(100, Math.max(0, Math.round(((current - start) / range) * 100)));
-                                }
-                            }
                             logger.info("KR {} is MANUAL: using progress={}", kr.getId(), krProgress);
                         } else {
                             // KR was not manually set, calculate from action items or metrics
                             
                             // Check if action items exist and should be used
+                            long totalAiCount = kr.getActionItems().stream()
+                                    .filter(ai -> ai != null)
+                                    .count();
                             long activeAiCount = kr.getActionItems().stream()
                                     .filter(ai -> ai != null)
                                     .filter(BaseEntity::getIsActive)
                                     .count();
+                            
+                            logger.info("KR {} action items: total={}, active={}", kr.getId(), totalAiCount, activeAiCount);
 
                             if (activeAiCount > 0) {
                                 // Calculate KR progress from average of action items
@@ -97,6 +130,7 @@ public class CalculationService {
                                         .mapToInt(ai -> safeProgress(ai.getProgress()))
                                         .sum();
                                 krProgress = (int) Math.min(100, Math.round(aiSum / activeAiCount));
+                                logger.info("KR {} calculated from {} active action items: progress={}", kr.getId(), activeAiCount, krProgress);
                                 
                                 // Update metricCurrent to reflect the calculated progress
                                 if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0) {
@@ -105,6 +139,15 @@ public class CalculationService {
                                     double range = target - start;
                                     double newCurrent = start + (range * krProgress / 100.0);
                                     kr.setMetricCurrent(newCurrent);
+                                }
+                            } else if (totalAiCount > 0) {
+                                // All action items were deleted - reset progress to 0
+                                krProgress = 0;
+                                logger.info("KR {} has {} deleted action items, resetting progress to 0", kr.getId(), totalAiCount);
+                                // Also reset metricCurrent if metrics exist
+                                if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0) {
+                                    double start = Optional.ofNullable(kr.getMetricStart()).orElse(0.0);
+                                    kr.setMetricCurrent(start);
                                 }
                             } else if (kr.getMetricTarget() != null && kr.getMetricTarget() > 0 && 
                                       kr.getMetricCurrent() != null) {
@@ -139,6 +182,12 @@ public class CalculationService {
                         objectiveRepository.save(obj);
                         goalTotal += newObjProgress;
                         objCount++;
+                    } else {
+                        // No active KRs - set objective progress to 0
+                        obj.setProgress(0);
+                        objectiveRepository.save(obj);
+                        goalTotal += 0;
+                        objCount++;
                     }
                 }
 
@@ -148,6 +197,12 @@ public class CalculationService {
                     goalRepository.save(goal);
                     initTotal += newGoalProgress;
                     goalCount++;
+                } else {
+                    // No active objectives - set goal progress to 0
+                    goal.setProgress(0);
+                    goalRepository.save(goal);
+                    initTotal += 0;
+                    goalCount++;
                 }
             }
 
@@ -156,6 +211,12 @@ public class CalculationService {
                 init.setProgress(newInitProgress);
                 initiativeRepository.save(init);
                 projTotal += newInitProgress;
+                initCount++;
+            } else {
+                // No active goals - set initiative progress to 0
+                init.setProgress(0);
+                initiativeRepository.save(init);
+                projTotal += 0;
                 initCount++;
             }
         }
