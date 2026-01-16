@@ -103,6 +103,12 @@ public class CalculationService {
                         
                         boolean manuallySet = kr.getManualProgressSet() != null && kr.getManualProgressSet();
                         
+                        logger.info("KR {} calculation: manualProgressSet={}, hasActionItems={}, hasMetrics={}", 
+                                kr.getId(), 
+                                manuallySet, 
+                                !kr.getActionItems().isEmpty(),
+                                (kr.getMetricTarget() != null && kr.getMetricCurrent() != null));
+                        
                         if (manuallySet) {
                             // If manually set, use the progress value directly - don't recalculate or sync from metrics
                             // This preserves the user's manual input while allowing rollup to parent entities
@@ -157,12 +163,17 @@ public class CalculationService {
                                 double current = kr.getMetricCurrent();
 
                                 double range = target - start;
+                                
+                                logger.info("KR {} calculating from metrics: start={}, current={}, target={}, range={}", 
+                                        kr.getId(), start, current, target, range);
 
                                 if (range != 0.0) {
                                     double percentage = ((current - start) / range) * 100;
                                     krProgress = (int) Math.min(100, Math.max(0, Math.round(percentage)));
+                                    logger.info("KR {} metric calculation: percentage={}, krProgress={}", kr.getId(), percentage, krProgress);
                                 } else if (current == start) {
                                     krProgress = 0;
+                                    logger.info("KR {} metric calculation: range is 0 and current==start, setting progress=0", kr.getId());
                                 }
                             } else {
                                 // No action items and no metrics, use current progress value

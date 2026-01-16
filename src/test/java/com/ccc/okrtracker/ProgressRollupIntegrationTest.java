@@ -211,6 +211,58 @@ public class ProgressRollupIntegrationTest {
     }
 
     /**
+     * Test Scenario 2B: Update metricCurrent on KR with no action items
+     * Verifies that updating metricCurrent triggers recalculation from metrics, not manual lock
+     */
+    @Test
+    public void testMetricCurrentUpdateWithNoActionItems() {
+        // Create a new objective and key result for metric-based testing
+        Objective metricObjective = new Objective();
+        metricObjective.setTitle("Metric Test Objective - No Action Items");
+        metricObjective.setDescription("Objective for metric testing without action items");
+        metricObjective.setProgress(0);
+        metricObjective = hierarchyService.addObjective(goal.getId(), metricObjective);
+
+        KeyResult metricKR = new KeyResult();
+        metricKR.setTitle("Metric Key Result - No Action Items");
+        metricKR.setDescription("Key result with metrics, no action items");
+        metricKR.setMetricStart(0.0);
+        metricKR.setMetricTarget(100.0);
+        metricKR.setMetricCurrent(0.0);
+        metricKR.setProgress(0);
+        metricKR = hierarchyService.addKeyResult(metricObjective.getId(), metricKR);
+
+        // Initial state - should be 0%
+        metricKR = keyResultRepo.findById(metricKR.getId()).orElseThrow();
+        assertEquals(0, metricKR.getProgress(), "Initial metric KR progress should be 0%");
+        assertFalse(metricKR.getManualProgressSet(), "manualProgressSet should be false initially");
+
+        // Update metricCurrent to 50.0 (should calculate to 50% progress)
+        metricKR.setMetricCurrent(50.0);
+        hierarchyService.updateKeyResult(metricKR.getId(), metricKR);
+
+        // Verify progress was calculated from metrics
+        metricKR = keyResultRepo.findById(metricKR.getId()).orElseThrow();
+        assertEquals(50, metricKR.getProgress(), "KR progress should be 50% based on metric calculation");
+        assertFalse(metricKR.getManualProgressSet(), "manualProgressSet should remain false after metric update");
+
+        // Verify propagation to parent
+        metricObjective = objectiveRepo.findById(metricObjective.getId()).orElseThrow();
+        assertEquals(50, metricObjective.getProgress(), "Objective should inherit 50% from metric KR");
+
+        // Update metricCurrent again to 75.0 (should calculate to 75% progress)
+        metricKR.setMetricCurrent(75.0);
+        hierarchyService.updateKeyResult(metricKR.getId(), metricKR);
+
+        metricKR = keyResultRepo.findById(metricKR.getId()).orElseThrow();
+        assertEquals(75, metricKR.getProgress(), "KR progress should be 75% after second metric update");
+        assertFalse(metricKR.getManualProgressSet(), "manualProgressSet should still be false");
+
+        metricObjective = objectiveRepo.findById(metricObjective.getId()).orElseThrow();
+        assertEquals(75, metricObjective.getProgress(), "Objective should update to 75%");
+    }
+
+    /**
      * Test Scenario 3A: Inactive Filter
      * Inactive children should not affect parent progress
      */
